@@ -10,6 +10,7 @@ from appsec.domain.repositories.domain_repository import DomainRepository
 from appsec.domain.repositories.organization_repository import OrganizationRepository
 from appsec.domain.repositories.project_repository import ProjectRepository
 from appsec.domain.repositories.scan_job_repository import ScanJobRepository
+from appsec.infrastructure.tasks.scan_execution import execute_scan_job
 
 
 class ScanJobService:
@@ -63,8 +64,7 @@ class ScanJobService:
         )
         created = await self._scan_jobs.create(scan_job)
         await self._session.commit()
-        # Actual scan execution (Celery dispatch to scanner engines) is out of scope here —
-        # this foundation only creates and gates the job record.
+        execute_scan_job.delay(str(created.id))
         return created
 
     async def get_by_id(

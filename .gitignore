@@ -13,3 +13,4 @@ htmlcov/
 *.db
 .DS_Store
 uv.lock.tmp
+.claude/

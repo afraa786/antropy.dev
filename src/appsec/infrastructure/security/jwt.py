@@ -20,7 +20,12 @@ class TokenPayload:
     org_id: uuid.UUID | None = None
 
 
-def _encode(subject: uuid.UUID, token_type: TokenType, expires_delta: timedelta, org_id: uuid.UUID | None = None) -> tuple[str, str]:
+def _encode(
+    subject: uuid.UUID,
+    token_type: TokenType,
+    expires_delta: timedelta,
+    org_id: uuid.UUID | None = None,
+) -> tuple[str, str]:
     settings = get_settings()
     jti = str(uuid.uuid4())
     now = datetime.now(UTC)

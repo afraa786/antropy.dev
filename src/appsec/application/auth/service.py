@@ -2,16 +2,21 @@ import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from appsec.config import get_settings
 from appsec.domain.entities.user import User
 from appsec.domain.exceptions import ConflictError, InvalidCredentialsError, UnauthorizedError
 from appsec.domain.repositories.user_repository import UserRepository
 from appsec.infrastructure.db.models.refresh_token import RefreshTokenModel
-from appsec.infrastructure.security.jwt import create_access_token, create_refresh_token, decode_token
+from appsec.infrastructure.security.jwt import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+)
 from appsec.infrastructure.security.password import hash_password, verify_password
 from appsec.infrastructure.security.redis_blacklist import TokenBlacklist
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _hash_token(token: str) -> str:

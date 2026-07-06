@@ -51,7 +51,8 @@ class OrganizationService:
         target_user_id: uuid.UUID,
         role: OrganizationRole,
     ) -> OrganizationMember:
-        await self._require_role(organization_id, requesting_user_id, {OrganizationRole.OWNER, OrganizationRole.ADMIN})
+        allowed_roles = {OrganizationRole.OWNER, OrganizationRole.ADMIN}
+        await self._require_role(organization_id, requesting_user_id, allowed_roles)
 
         existing = await self._orgs.get_member(organization_id, target_user_id)
         if existing is not None:
