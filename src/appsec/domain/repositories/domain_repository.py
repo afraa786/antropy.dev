@@ -1,0 +1,20 @@
+import uuid
+from typing import Protocol
+
+from appsec.domain.entities.domain import Domain
+
+
+class DomainRepository(Protocol):
+    async def get_by_id(self, domain_id: uuid.UUID, organization_id: uuid.UUID) -> Domain | None: ...
+
+    async def get_by_hostname(
+        self, hostname: str, organization_id: uuid.UUID
+    ) -> Domain | None: ...
+
+    async def create(self, domain: Domain) -> Domain: ...
+
+    async def update(self, domain: Domain) -> Domain: ...
+
+    async def list_for_project(
+        self, project_id: uuid.UUID, organization_id: uuid.UUID
+    ) -> list[Domain]: ...

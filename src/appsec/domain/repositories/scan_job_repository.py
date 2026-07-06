@@ -1,0 +1,18 @@
+import uuid
+from typing import Protocol
+
+from appsec.domain.entities.scan_job import ScanJob
+
+
+class ScanJobRepository(Protocol):
+    async def get_by_id(self, scan_job_id: uuid.UUID, organization_id: uuid.UUID) -> ScanJob | None: ...
+
+    async def create(self, scan_job: ScanJob) -> ScanJob: ...
+
+    async def update(self, scan_job: ScanJob) -> ScanJob: ...
+
+    async def list_for_project(
+        self, project_id: uuid.UUID, organization_id: uuid.UUID
+    ) -> list[ScanJob]: ...
+
+    async def list_for_organization(self, organization_id: uuid.UUID) -> list[ScanJob]: ...
