@@ -12,6 +12,7 @@ from appsec.application.domains.service import DomainService
 from appsec.application.notifications.service import NotificationService
 from appsec.application.organizations.service import OrganizationService
 from appsec.application.projects.service import ProjectService
+from appsec.application.quick_scan.service import QuickScanService
 from appsec.application.reports.service import ReportService
 from appsec.application.scan_jobs.service import ScanJobService
 from appsec.application.scan_results.service import ScanResultService
@@ -175,6 +176,30 @@ def get_notification_service(
     ],
 ) -> NotificationService:
     return NotificationService(session, notification_repository)
+
+
+def get_quick_scan_service(
+    organization_service: Annotated[OrganizationService, Depends(get_organization_service)],
+    project_service: Annotated[ProjectService, Depends(get_project_service)],
+    domain_service: Annotated[DomainService, Depends(get_domain_service)],
+    scan_job_service: Annotated[ScanJobService, Depends(get_scan_job_service)],
+    organization_repository: Annotated[
+        SqlAlchemyOrganizationRepository, Depends(get_organization_repository)
+    ],
+    project_repository: Annotated[SqlAlchemyProjectRepository, Depends(get_project_repository)],
+    domain_repository: Annotated[SqlAlchemyDomainRepository, Depends(get_domain_repository)],
+    user_repository: Annotated[SqlAlchemyUserRepository, Depends(get_user_repository)],
+) -> QuickScanService:
+    return QuickScanService(
+        organization_service,
+        project_service,
+        domain_service,
+        scan_job_service,
+        organization_repository,
+        project_repository,
+        domain_repository,
+        user_repository,
+    )
 
 
 async def get_current_user_id(

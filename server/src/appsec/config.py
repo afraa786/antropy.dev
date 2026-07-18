@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     verification_token_prefix: str = "appsec-verify"
     verification_ttl_days: int = 90
 
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+
+    # Guards the quick-scan skip_verification path. Must be explicitly true for
+    # verification to ever be bypassed — never enable in a real deployment.
+    allow_demo_verification_skip: bool = False
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"

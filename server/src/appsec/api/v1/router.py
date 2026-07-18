@@ -7,6 +7,7 @@ from appsec.api.v1 import (
     notifications,
     organizations,
     projects,
+    quick_scan,
     reports,
     scan_jobs,
     scan_results,
@@ -21,6 +22,7 @@ api_router.include_router(users.router)
 api_router.include_router(organizations.router)
 api_router.include_router(projects.router)
 api_router.include_router(domains.router)
+api_router.include_router(quick_scan.router)
 api_router.include_router(scan_jobs.router)
 api_router.include_router(scan_results.router)
 api_router.include_router(reports.router)

@@ -11,7 +11,9 @@ from appsec.infrastructure.db.models import *  # noqa: F401,F403 -- registers mo
 
 config = context.config
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Escape literal % (e.g. %40 in a percent-encoded password) so ConfigParser's
+# interpolation doesn't choke on it; alembic reads the value back un-escaped.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -42,6 +44,9 @@ async def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        # Required through Supabase's transaction pooler (pgbouncer): it does not
+        # support the prepared statements asyncpg caches by default.
+        connect_args={"statement_cache_size": 0},
     )
 
     async with connectable.connect() as connection:

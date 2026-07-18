@@ -1,19 +1,6 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-appsec}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRES_DB:-appsec}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appsec}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+  # Local Postgres removed — database is now hosted on Supabase.
+  # DATABASE_URL / DATABASE_URL_SYNC come from .env (see api/worker/beat services).
 
   redis:
     image: redis:7-alpine
@@ -26,36 +13,27 @@ services:
       retries: 10
 
   api:
-    build: .
-    env_file: .env
+    build: ./server
+    env_file: ./server/.env
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     command: uvicorn appsec.main:app --host 0.0.0.0 --port 8000 --reload
 
   worker:
-    build: .
-    env_file: .env
+    build: ./server
+    env_file: ./server/.env
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     command: celery -A appsec.infrastructure.celery_app worker --loglevel=info
 
   beat:
-    build: .
-    env_file: .env
+    build: ./server
+    env_file: ./server/.env
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     command: celery -A appsec.infrastructure.celery_app beat --loglevel=info
-
-volumes:
-  postgres_data:

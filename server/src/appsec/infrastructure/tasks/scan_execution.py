@@ -16,6 +16,7 @@ from appsec.infrastructure.db.models.scan_result import ScanResultModel
 from appsec.infrastructure.db.sync_session import get_sync_session
 from appsec.logging import get_logger
 from appsec.scanner.orchestrator import run_scan
+from appsec.scanner.reports.ai_summary import generate_summary
 from appsec.scanner.reports.formatter import format_report
 
 logger = get_logger(__name__)
@@ -38,15 +39,18 @@ def execute_scan_job(self, scan_job_id: str) -> None:
         scan_job.started_at = datetime.now(UTC)
         session.commit()
 
-        try:
-            output = asyncio.run(
-                run_scan(
-                    scan_job_id=uuid.UUID(scan_job_id),
-                    organization_id=scan_job.organization_id,
-                    hostname=domain.hostname,
-                    scan_type=scan_job.scan_type,
-                )
+        async def _run_and_summarize():
+            output = await run_scan(
+                scan_job_id=uuid.UUID(scan_job_id),
+                organization_id=scan_job.organization_id,
+                hostname=domain.hostname,
+                scan_type=scan_job.scan_type,
             )
+            ai_summary = await generate_summary(output)
+            return output, ai_summary
+
+        try:
+            output, ai_summary = asyncio.run(_run_and_summarize())
         except Exception as exc:  # noqa: BLE001 -- persist failure state, don't crash worker
             logger.error("scan_job_execution_failed", scan_job_id=scan_job_id, error=str(exc))
             scan_job.status = ScanStatus.FAILED
@@ -55,11 +59,12 @@ def execute_scan_job(self, scan_job_id: str) -> None:
             return
 
         report = format_report(output)
+        summary = {**report["summary"], "ai_summary": ai_summary}
         result = ScanResultModel(
             id=uuid.uuid4(),
             scan_job_id=scan_job.id,
             organization_id=scan_job.organization_id,
-            summary=report["summary"],
+            summary=summary,
             severity_counts=output.severity_counts,
         )
         session.add(result)
