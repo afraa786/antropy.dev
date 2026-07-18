@@ -12,6 +12,7 @@ celery_app = Celery(
         "appsec.infrastructure.tasks.domain_verification",
         "appsec.infrastructure.tasks.notifications",
         "appsec.infrastructure.tasks.scan_execution",
+        "appsec.infrastructure.tasks.urlscan_execution",
     ],
 )
 

@@ -34,6 +34,7 @@ dev = [
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+extend-exclude = ["src/appsec/alembic/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
@@ -41,7 +42,7 @@ ignore = ["B008"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["tests", "src/appsec/scanner/tests"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/appsec"]

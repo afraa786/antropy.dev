@@ -8,6 +8,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime
 
+from appsec.config import get_settings
 from appsec.domain.enums import ScanStatus
 from appsec.infrastructure.celery_app import celery_app
 from appsec.infrastructure.db.models.domain import DomainModel
@@ -78,3 +79,10 @@ def execute_scan_job(self, scan_job_id: str) -> None:
             scan_job_id=scan_job_id,
             finding_count=len(output.findings),
         )
+
+    # Kick off the slow urlscan engine as a separate progressive task — it
+    # appends its findings later without blocking this job's completion.
+    if get_settings().urlscan_api_key:
+        from appsec.infrastructure.tasks.urlscan_execution import execute_urlscan
+
+        execute_urlscan.delay(scan_job_id)

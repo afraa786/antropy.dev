@@ -15,6 +15,21 @@ from appsec.scanner.orchestrator.dispatcher import dispatch
 from appsec.scanner.orchestrator.pipeline import PipelineOutput, process
 from appsec.scanner.orchestrator.scheduler import select_engines
 
+
+async def run_single_engine(
+    engine_name: str,
+    scan_job_id: uuid.UUID,
+    organization_id: uuid.UUID,
+    hostname: str,
+) -> PipelineOutput:
+    """Runs exactly one named engine and returns its normalized output. Used by
+    progressive engines (e.g. urlscan) that execute in their own task after the
+    main scan has already completed.
+    """
+    target = Target(hostname=hostname, scan_job_id=scan_job_id, organization_id=organization_id)
+    results = await dispatch([engine_name], target)
+    return process(results)
+
 logger = get_logger(__name__)
 
 

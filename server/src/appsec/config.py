@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # verification to ever be bypassed — never enable in a real deployment.
     allow_demo_verification_skip: bool = False
 
+    urlscan_api_key: str | None = None
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
