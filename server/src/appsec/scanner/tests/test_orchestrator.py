@@ -15,8 +15,6 @@ def _reset_registry():
 
 @pytest.mark.asyncio
 async def test_run_scan_with_no_registered_engines_returns_empty_output() -> None:
-    output = await run_scan(
-        scan_job_id=uuid.uuid4(), organization_id=uuid.uuid4(), hostname="example.com"
-    )
+    output = await run_scan(scan_job_id=uuid.uuid4(), organization_id=uuid.uuid4(), hostname="example.com")
     assert output.findings == []
     assert output.failed_engines == []

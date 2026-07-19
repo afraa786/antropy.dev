@@ -30,9 +30,7 @@ class SqlAlchemyOrganizationRepository:
         return _to_org_entity(model) if model else None
 
     async def get_by_slug(self, slug: str) -> Organization | None:
-        result = await self._session.execute(
-            select(OrganizationModel).where(OrganizationModel.slug == slug)
-        )
+        result = await self._session.execute(select(OrganizationModel).where(OrganizationModel.slug == slug))
         model = result.scalar_one_or_none()
         return _to_org_entity(model) if model else None
 
@@ -60,17 +58,13 @@ class SqlAlchemyOrganizationRepository:
         await self._session.refresh(model)
         return _to_member_entity(model)
 
-    async def get_member(
-        self, organization_id: uuid.UUID, user_id: uuid.UUID
-    ) -> OrganizationMember | None:
+    async def get_member(self, organization_id: uuid.UUID, user_id: uuid.UUID) -> OrganizationMember | None:
         model = await self._session.get(OrganizationMemberModel, (organization_id, user_id))
         return _to_member_entity(model) if model else None
 
     async def list_members(self, organization_id: uuid.UUID) -> list[OrganizationMember]:
         result = await self._session.execute(
-            select(OrganizationMemberModel).where(
-                OrganizationMemberModel.organization_id == organization_id
-            )
+            select(OrganizationMemberModel).where(OrganizationMemberModel.organization_id == organization_id)
         )
         return [_to_member_entity(m) for m in result.scalars().all()]
 

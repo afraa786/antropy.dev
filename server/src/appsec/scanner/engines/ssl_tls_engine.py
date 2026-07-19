@@ -120,9 +120,7 @@ class SslTlsScanner(Scanner):
             completed_at=datetime.now(UTC),
         )
 
-    def _fetch_cert(
-        self, hostname: str, port: int
-    ) -> tuple[dict[str, Any], str | None, tuple | None]:
+    def _fetch_cert(self, hostname: str, port: int) -> tuple[dict[str, Any], str | None, tuple | None]:
         """Return (peer cert dict, negotiated protocol, cipher tuple). Uses a
         verifying context first; on verify failure (expired/self-signed/mismatch)
         retries without verification so we can still inspect the presented cert.
@@ -141,9 +139,18 @@ class SslTlsScanner(Scanner):
     def _connect(
         self, context: ssl.SSLContext, hostname: str, port: int
     ) -> tuple[dict[str, Any], str | None, tuple | None]:
-        with socket.create_connection(
-            (hostname, port), timeout=_CONNECT_TIMEOUT
-        ) as sock, context.wrap_socket(sock, server_hostname=hostname) as ssock:
+        # CodeQL flags this handshake as "insecure TLS version" because the
+        # context accepts old protocols (TLSv1/1.1). That is intentional and
+        # required: this is a TLS *scanner* — it must negotiate with weak,
+        # misconfigured endpoints in order to detect and report them (see
+        # _check_protocol). Refusing old TLS here would blind the very check
+        # this engine exists to perform.
+        with (
+            socket.create_connection((hostname, port), timeout=_CONNECT_TIMEOUT) as sock,
+            context.wrap_socket(  # noqa # nosec B502 - intentional: TLS scanner must probe weak endpoints
+                sock, server_hostname=hostname
+            ) as ssock,  # lgtm[py/insecure-protocol]
+        ):
             cert = ssock.getpeercert()
             # getpeercert() returns {} when verification is disabled; fall back
             # to decoding the DER form into the same dict structure.

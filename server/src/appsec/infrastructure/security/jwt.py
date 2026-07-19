@@ -44,9 +44,7 @@ def _encode(
 
 def create_access_token(user_id: uuid.UUID, org_id: uuid.UUID | None = None) -> tuple[str, str]:
     settings = get_settings()
-    return _encode(
-        user_id, "access", timedelta(minutes=settings.jwt_access_token_expire_minutes), org_id
-    )
+    return _encode(user_id, "access", timedelta(minutes=settings.jwt_access_token_expire_minutes), org_id)
 
 
 def create_refresh_token(user_id: uuid.UUID) -> tuple[str, str]:

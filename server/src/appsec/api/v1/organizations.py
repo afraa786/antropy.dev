@@ -31,9 +31,7 @@ async def list_organizations(
     org_service: Annotated[OrganizationService, Depends(get_organization_service)],
 ) -> list[OrganizationResponse]:
     orgs = await org_service.list_for_user(user_id)
-    return [
-        OrganizationResponse(id=o.id, name=o.name, slug=o.slug, created_at=o.created_at) for o in orgs
-    ]
+    return [OrganizationResponse(id=o.id, name=o.name, slug=o.slug, created_at=o.created_at) for o in orgs]
 
 
 @router.get("/{organization_id}", response_model=OrganizationResponse)
@@ -46,9 +44,7 @@ async def get_organization(
     return OrganizationResponse(id=org.id, name=org.name, slug=org.slug, created_at=org.created_at)
 
 
-@router.post(
-    "/{organization_id}/members", response_model=MemberResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/{organization_id}/members", response_model=MemberResponse, status_code=status.HTTP_201_CREATED)
 async def add_member(
     organization_id: uuid.UUID,
     payload: AddMemberRequest,

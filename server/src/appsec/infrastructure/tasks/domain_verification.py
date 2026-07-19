@@ -47,9 +47,7 @@ def check_domain_verification(self, domain_id: str) -> bool:
         else:
             verified = _check_http_file(domain.hostname, domain.verification_token)
 
-        domain.verification_status = (
-            VerificationStatus.VERIFIED if verified else VerificationStatus.FAILED
-        )
+        domain.verification_status = VerificationStatus.VERIFIED if verified else VerificationStatus.FAILED
         if verified:
             domain.verified_at = datetime.now(UTC)
         session.commit()

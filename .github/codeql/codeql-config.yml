@@ -1,0 +1,18 @@
+name: "Entropy CodeQL config"
+
+# Run the strong query suite everywhere.
+queries:
+  - uses: security-extended
+
+query-filters:
+  # The ssl_tls scanner engine intentionally negotiates old TLS versions
+  # (TLSv1/1.1) so it can connect to weak, misconfigured servers and REPORT
+  # them — that detection is the engine's entire purpose. CodeQL's
+  # py/insecure-protocol rule flags this handshake as a vulnerability, which is
+  # a false positive for a security scanner. Exclude that one rule for this one
+  # file only; every other rule still applies here, and every rule still
+  # applies to the rest of the codebase.
+  - exclude:
+      id: py/insecure-protocol
+      paths:
+        - server/src/appsec/scanner/engines/ssl_tls_engine.py

@@ -30,6 +30,7 @@ async def run_single_engine(
     results = await dispatch([engine_name], target)
     return process(results)
 
+
 logger = get_logger(__name__)
 
 
@@ -50,9 +51,7 @@ async def run_scan(
     """
     engine_names = select_engines(scan_type)
 
-    logger.info(
-        "scan_started", scan_job_id=str(scan_job_id), engines=engine_names, scan_type=scan_type
-    )
+    logger.info("scan_started", scan_job_id=str(scan_job_id), engines=engine_names, scan_type=scan_type)
     started_event = ScanStarted(
         scan_job_id=scan_job_id, organization_id=organization_id, engines=engine_names
     )

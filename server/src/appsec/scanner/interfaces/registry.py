@@ -20,10 +20,10 @@ class ScannerNotFoundError(Exception):
 def register_scanner(scanner_cls: type[Scanner]) -> type[Scanner]:
     """Class decorator engines use to register themselves, e.g.:
 
-        @register_scanner
-        class NucleiScanner(Scanner):
-            name = "nuclei"
-            ...
+    @register_scanner
+    class NucleiScanner(Scanner):
+        name = "nuclei"
+        ...
     """
     name = scanner_cls.name
     if name in _REGISTRY:
