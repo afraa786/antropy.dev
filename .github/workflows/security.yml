@@ -87,14 +87,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Log in to GHCR so Trivy pulls its vuln DB with an authenticated token
+      # instead of anonymously (the anonymous pull is rate-limited and fails
+      # the scan within seconds).
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Scan repository filesystem
         uses: aquasecurity/trivy-action@0.28.0
         env:
-          # Pull the vuln DB from GHCR with the workflow token to avoid the
-          # anonymous Docker Hub rate limit that fails the scan in seconds.
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db:1
         with:
           scan-type: fs
           scan-ref: .
@@ -107,14 +113,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build API image
         run: docker build -t entropy-api:scan ./server
       - name: Scan Docker image
         uses: aquasecurity/trivy-action@0.28.0
         env:
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db:1
         with:
           scan-type: image
           image-ref: entropy-api:scan

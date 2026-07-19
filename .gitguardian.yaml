@@ -1,0 +1,15 @@
+# GitGuardian configuration.
+# https://docs.gitguardian.com/ggshield-docs/reference/config
+version: 2
+
+secret:
+  # Hardcoded dummy passwords in integration tests are not real credentials —
+  # they register-and-login throwaway users against an ephemeral test database.
+  ignored-paths:
+    - "server/tests/**"
+    - "server/src/appsec/scanner/tests/**"
+  # Belt-and-suspenders: also ignore the specific literal used by those tests,
+  # in case it ever appears outside the tests/ tree.
+  ignored-matches:
+    - name: test-fixture-password
+      match: supersecret123
