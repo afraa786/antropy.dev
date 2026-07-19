@@ -1,0 +1,112 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  branch-naming:
+    name: Branch Naming
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch name
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          pattern='^(feat|fix|chore|docs|refactor|test|perf|ci|build|hotfix|release)/[a-z0-9._-]+$'
+          if echo "$BRANCH" | grep -qE "$pattern"; then
+            echo "Branch name OK: $BRANCH"
+          else
+            echo "Invalid branch name: $BRANCH"
+            echo "Expected: <type>/<kebab-case-description>"
+            echo "Types: feat fix chore docs refactor test perf ci build hotfix release"
+            echo "Example: feat/quick-scan-rate-limit"
+            exit 1
+          fi
+
+  commit-messages:
+    name: Commit Messages (Conventional Commits)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate PR commit messages
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .{1,72}$'
+          failed=0
+          while IFS= read -r line; do
+            sha="${line%% *}"
+            subject="${line#* }"
+            case "$subject" in
+              "Merge "*) echo "SKIP  $sha  $subject (merge commit)"; continue ;;
+            esac
+            if echo "$subject" | grep -qE "$pattern"; then
+              echo "OK    $sha  $subject"
+            else
+              echo "FAIL  $sha  $subject"
+              failed=1
+            fi
+          done < <(git log --no-merges --format='%h %s' "$BASE_SHA..$HEAD_SHA")
+          if [ "$failed" -ne 0 ]; then
+            echo ""
+            echo "Commit messages must follow Conventional Commits:"
+            echo "  <type>(<optional scope>): <subject, max 72 chars>"
+            echo "  Example: feat(scanner): add urlscan.io engine"
+            exit 1
+          fi
+
+  pr-title:
+    name: PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate semantic PR title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^.{1,72}$
+          subjectPatternError: PR title subject must be 1-72 characters.
+
+  documentation:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required docs exist
+        run: |
+          required="README.md server/.env.example client/README.md security/README.md"
+          missing=0
+          for f in $required; do
+            if [ -f "$f" ]; then
+              echo "OK    $f"
+            else
+              echo "MISSING  $f"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
