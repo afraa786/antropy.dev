@@ -107,14 +107,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Trivy
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin v0.58.1
-          trivy --version
       - name: Scan repository filesystem
         run: |
-          trivy fs . \
+          docker run --rm \
+            -v "$PWD:/scan" \
+            -e TRIVY_DB_REPOSITORY \
+            -e TRIVY_JAVA_DB_REPOSITORY \
+            aquasec/trivy:0.58.1 fs /scan \
             --severity CRITICAL \
             --ignore-unfixed \
             --exit-code 0 \
@@ -136,16 +135,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build API image
         run: docker build -t entropy-api:scan ./server
-      - name: Install Trivy
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin v0.58.1
-          trivy --version
       - name: Scan Docker image
         run: |
-          # Only fail on CRITICAL OS/library CVEs that have a fix available —
-          # unfixable base-image CVEs from python:3.12-slim shouldn't block PRs.
-          trivy image entropy-api:scan \
+          # Report CRITICAL CVEs but do not fail the PR — unfixable base-image
+          # CVEs from python:3.12-slim shouldn't block merges (--exit-code 0).
+          # Mount the docker socket so trivy-in-a-container can read the image.
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -e TRIVY_DB_REPOSITORY \
+            -e TRIVY_JAVA_DB_REPOSITORY \
+            aquasec/trivy:0.58.1 image entropy-api:scan \
             --severity CRITICAL \
             --ignore-unfixed \
             --exit-code 0 \
