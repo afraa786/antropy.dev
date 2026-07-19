@@ -36,4 +36,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    command: celery -A appsec.infrastructure.celery_app beat --loglevel=info
+    # Write the schedule file to /tmp — the container runs as a non-root user
+    # that can't write in /app (the working dir).
+    command: celery -A appsec.infrastructure.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
