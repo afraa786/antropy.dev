@@ -1,0 +1,131 @@
+import subprocess
+import json
+import os
+import uuid
+from datetime import UTC, datetime
+
+from appsec.scanner.interfaces.models import (
+    Evidence,
+    Finding,
+    ScanEngineCategory,
+    ScanResult,
+    Severity,
+    Target,
+)
+from appsec.scanner.interfaces.registry import register_scanner
+from appsec.scanner.interfaces.scanner import Scanner
+
+
+@register_scanner
+class NucleiScanner(Scanner):
+    name = "nuclei"
+    category = ScanEngineCategory.VULNERABILITY_SCAN
+
+    async def validate(self, target: Target) -> bool:
+        return bool(target.hostname)
+
+    async def health_check(self) -> bool:
+        try:
+            res = subprocess.run(["nuclei", "-version"], capture_output=True, text=True)
+            return res.returncode == 0
+        except Exception:
+            return False
+
+    async def scan(self, target: Target) -> ScanResult:
+        started = datetime.now(UTC)
+        hostname = target.hostname
+        output_file = f"/tmp/nuclei_{uuid.uuid4()}.json"
+
+        # Nuclei Command Base
+        cmd = ["nuclei", "-jsonl", "-o", output_file, "-silent"]
+
+        # Look to see if a previous Katana task passed its list via target options
+        katana_file = target.options.get("katana_file_path")
+        if katana_file and os.path.exists(katana_file):
+            cmd.extend(["-list", katana_file])
+        else:
+            cmd.extend(["-target", f"https://{hostname}"])
+
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+            raw_findings = []
+            if os.path.exists(output_file):
+                with open(output_file, "r") as f:
+                    for line in f:
+                        if line.strip():
+                            raw_findings.append(json.loads(line))
+
+            # Normalize raw JSON items into actual system Findings
+            normalized_findings = self._normalize(raw_findings, hostname)
+
+            return ScanResult(
+                scan_job_id=target.scan_job_id,
+                engine=self.name,
+                findings=normalized_findings,
+                success=True,
+                started_at=started,
+                completed_at=datetime.now(UTC),
+            )
+
+        except Exception as exc:
+            return ScanResult(
+                scan_job_id=target.scan_job_id,
+                engine=self.name,
+                success=False,
+                error_message=f"Nuclei execution failed: {str(exc)}",
+                started_at=started,
+                completed_at=datetime.now(UTC),
+            )
+        finally:
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+            # Cleanup Katana file if it was explicitly passed in to avoid disk bloat
+            if katana_file and os.path.exists(katana_file):
+                try:
+                    os.unlink(katana_file)
+                except Exception:
+                    pass
+
+    def _normalize(self, raw_data: list[dict], hostname: str) -> list[Finding]:
+        findings: list[Finding] = []
+        
+        # Severity mapper to map Nuclei strings to your backend Enum
+        severity_map = {
+            "info": Severity.INFO,
+            "low": Severity.LOW,
+            "medium": Severity.MEDIUM,
+            "high": Severity.HIGH,
+            "critical": Severity.CRITICAL,
+        }
+
+        for item in raw_data:
+            info = item.get("info", {})
+            raw_severity = info.get("severity", "info").lower()
+            
+            # Map evidence out of matching lines / requests
+            evidence_list = []
+            if item.get("matched-at"):
+                evidence_list.append(Evidence(description="Matched URL/Endpoint", raw_data=item["matched-at"]))
+            if item.get("extracted-results"):
+                evidence_list.append(Evidence(description="Extracted Data", raw_data=", ".join(item["extracted-results"])))
+
+            finding = Finding(
+                id=uuid.uuid4(),
+                title=info.get("name", "Unknown vulnerability"),
+                severity=severity_map.get(raw_severity, Severity.INFO),
+                description=info.get("description", "No description provided by engine template."),
+                engine=self.name,
+                matched_at=item.get("matched-at") or hostname,
+                evidence=evidence_list,
+                tags=info.get("tags", []) + ["nuclei"],
+                metadata={
+                    "template_id": item.get("template-id"),
+                    "type": item.get("type"),
+                    "classification": info.get("classification", {}),
+                    "remediation": info.get("remediation")
+                },
+            )
+            findings.append(finding)
+            
+        return findings
