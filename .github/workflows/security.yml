@@ -29,7 +29,7 @@ jobs:
       - name: Export locked requirements
         run: uv export --no-dev --no-hashes --format requirements-txt > requirements-ci.txt
       - name: Audit dependencies for known CVEs
-        run: uvx pip-audit -r requirements-ci.txt --disable-pip
+        run: uvx pip-audit -r requirements-ci.txt --no-deps
 
   secret-scan:
     name: Secret Scan (Gitleaks)
@@ -89,6 +89,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Scan repository filesystem
         uses: aquasecurity/trivy-action@0.28.0
+        env:
+          # Pull the vuln DB from GHCR with the workflow token to avoid the
+          # anonymous Docker Hub rate limit that fails the scan in seconds.
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         with:
           scan-type: fs
           scan-ref: .
@@ -105,9 +111,15 @@ jobs:
         run: docker build -t entropy-api:scan ./server
       - name: Scan Docker image
         uses: aquasecurity/trivy-action@0.28.0
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         with:
           scan-type: image
           image-ref: entropy-api:scan
+          # Only fail on CRITICAL OS/library CVEs that have a fix available —
+          # unfixable base-image CVEs from python:3.12-slim shouldn't block PRs.
           severity: CRITICAL
           exit-code: "1"
           ignore-unfixed: true

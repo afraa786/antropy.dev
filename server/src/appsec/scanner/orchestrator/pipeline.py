@@ -11,9 +11,7 @@ from appsec.scanner.normalizer.findings import deduplicate, severity_counts, sor
 class PipelineOutput:
     __slots__ = ("findings", "severity_counts", "failed_engines")
 
-    def __init__(
-        self, findings: list[Finding], counts: dict[str, int], failed_engines: list[str]
-    ) -> None:
+    def __init__(self, findings: list[Finding], counts: dict[str, int], failed_engines: list[str]) -> None:
         self.findings = findings
         self.severity_counts = counts
         self.failed_engines = failed_engines

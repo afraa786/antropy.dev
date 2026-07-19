@@ -52,8 +52,7 @@ class DomainNotVerifiedError(AppException):
 
     def __init__(self, hostname: str | None = None) -> None:
         message = (
-            f"Domain '{hostname}' is not verified. Ownership verification required before "
-            "scanning."
+            f"Domain '{hostname}' is not verified. Ownership verification required before scanning."
             if hostname
             else "Domain is not verified. Ownership verification required before scanning."
         )

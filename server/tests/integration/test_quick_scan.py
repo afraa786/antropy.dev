@@ -15,9 +15,7 @@ async def _register_login(client: AsyncClient, email: str) -> str:
         "/api/v1/auth/register",
         json={"email": email, "password": "supersecret123", "full_name": None},
     )
-    login = await client.post(
-        "/api/v1/auth/login", json={"email": email, "password": "supersecret123"}
-    )
+    login = await client.post("/api/v1/auth/login", json={"email": email, "password": "supersecret123"})
     return login.json()["access_token"]
 
 
@@ -27,9 +25,10 @@ async def test_quick_scan_happy_path_with_skip_verification(
 ) -> None:
     # skip_verification is guarded by this env flag; enable it for the test.
     get_settings.cache_clear()
-    with patch.object(get_settings(), "allow_demo_verification_skip", True), patch(
-        "appsec.application.scan_jobs.service.execute_scan_job.delay"
-    ) as mock_delay:
+    with (
+        patch.object(get_settings(), "allow_demo_verification_skip", True),
+        patch("appsec.application.scan_jobs.service.execute_scan_job.delay") as mock_delay,
+    ):
         access_token = await _register_login(client, random_email)
         headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -49,9 +48,7 @@ async def test_quick_scan_happy_path_with_skip_verification(
     scan_job_id = uuid.UUID(body["scan_job_id"])  # valid UUID
 
     # The scan job row actually exists in the DB.
-    result = await db_session.execute(
-        select(ScanJobModel).where(ScanJobModel.id == scan_job_id)
-    )
+    result = await db_session.execute(select(ScanJobModel).where(ScanJobModel.id == scan_job_id))
     scan_job = result.scalar_one_or_none()
     assert scan_job is not None
     assert scan_job.scan_type == "default"
@@ -61,9 +58,7 @@ async def test_quick_scan_happy_path_with_skip_verification(
 
 
 @pytest.mark.asyncio
-async def test_quick_scan_skip_rejected_when_flag_disabled(
-    client: AsyncClient, random_email: str
-) -> None:
+async def test_quick_scan_skip_rejected_when_flag_disabled(client: AsyncClient, random_email: str) -> None:
     get_settings.cache_clear()
     with patch.object(get_settings(), "allow_demo_verification_skip", False):
         access_token = await _register_login(client, random_email)

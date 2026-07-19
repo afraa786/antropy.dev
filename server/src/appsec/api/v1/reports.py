@@ -34,9 +34,7 @@ async def create_report(
     user_id: CurrentUserIdDep,
     report_service: Annotated[ReportService, Depends(get_report_service)],
 ) -> ReportResponse:
-    report = await report_service.create_for_scan_job(
-        scan_job_id, organization_id, user_id, payload.format
-    )
+    report = await report_service.create_for_scan_job(scan_job_id, organization_id, user_id, payload.format)
     return _to_response(report)
 
 

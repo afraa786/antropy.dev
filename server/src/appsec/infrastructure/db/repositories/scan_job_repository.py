@@ -26,9 +26,7 @@ class SqlAlchemyScanJobRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def get_by_id(
-        self, scan_job_id: uuid.UUID, organization_id: uuid.UUID
-    ) -> ScanJob | None:
+    async def get_by_id(self, scan_job_id: uuid.UUID, organization_id: uuid.UUID) -> ScanJob | None:
         result = await self._session.execute(
             select(ScanJobModel).where(
                 ScanJobModel.id == scan_job_id, ScanJobModel.organization_id == organization_id
@@ -65,9 +63,7 @@ class SqlAlchemyScanJobRepository:
         await self._session.refresh(model)
         return _to_entity(model)
 
-    async def list_for_project(
-        self, project_id: uuid.UUID, organization_id: uuid.UUID
-    ) -> list[ScanJob]:
+    async def list_for_project(self, project_id: uuid.UUID, organization_id: uuid.UUID) -> list[ScanJob]:
         result = await self._session.execute(
             select(ScanJobModel).where(
                 ScanJobModel.project_id == project_id, ScanJobModel.organization_id == organization_id

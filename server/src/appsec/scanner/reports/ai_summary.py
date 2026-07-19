@@ -27,9 +27,7 @@ def summary_context(output: PipelineOutput) -> dict[str, Any]:
         "total_findings": len(output.findings),
         "severity_counts": output.severity_counts,
         "failed_engines": output.failed_engines,
-        "top_findings": [
-            {"title": f.title, "severity": f.severity.value} for f in output.findings[:10]
-        ],
+        "top_findings": [{"title": f.title, "severity": f.severity.value} for f in output.findings[:10]],
     }
 
 
