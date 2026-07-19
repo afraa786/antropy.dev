@@ -82,35 +82,45 @@ jobs:
           --error
           --metrics=off
 
+  # NB: we install the Trivy CLI directly rather than using aquasecurity/trivy-action.
+  # That action's releases pin an internal helper (setup-trivy@v0.2.2) that has
+  # been yanked from GitHub, so the action fails to resolve regardless of which
+  # trivy-action version is chosen. The official install script has no such
+  # dependency chain.
   trivy-fs:
     name: Trivy Filesystem
     runs-on: ubuntu-latest
+    env:
+      # Authenticated GHCR pull for the vuln DB avoids the anonymous rate limit.
+      TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
+      TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db:1
     steps:
       - uses: actions/checkout@v4
-      # Log in to GHCR so Trivy pulls its vuln DB with an authenticated token
-      # instead of anonymously (the anonymous pull is rate-limited and fails
-      # the scan within seconds).
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Trivy
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin v0.58.1
+          trivy --version
       - name: Scan repository filesystem
-        uses: aquasecurity/trivy-action@v0.29.0
-        env:
-          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
-          TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db:1
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: CRITICAL
-          exit-code: "1"
-          ignore-unfixed: true
+        run: |
+          trivy fs . \
+            --severity CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress
 
   trivy-image:
     name: Trivy Image
     runs-on: ubuntu-latest
+    env:
+      TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
+      TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db:1
     steps:
       - uses: actions/checkout@v4
       - name: Log in to GHCR
@@ -121,19 +131,20 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build API image
         run: docker build -t entropy-api:scan ./server
+      - name: Install Trivy
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin v0.58.1
+          trivy --version
       - name: Scan Docker image
-        uses: aquasecurity/trivy-action@v0.29.0
-        env:
-          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
-          TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db:1
-        with:
-          scan-type: image
-          image-ref: entropy-api:scan
+        run: |
           # Only fail on CRITICAL OS/library CVEs that have a fix available —
           # unfixable base-image CVEs from python:3.12-slim shouldn't block PRs.
-          severity: CRITICAL
-          exit-code: "1"
-          ignore-unfixed: true
+          trivy image entropy-api:scan \
+            --severity CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress
 
   license-check:
     name: License Check
