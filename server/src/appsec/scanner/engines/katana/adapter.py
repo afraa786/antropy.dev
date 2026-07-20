@@ -1,10 +1,19 @@
+"""Katana web-crawler engine. Wraps the `katana` CLI, deep-crawls the target
+(including JavaScript endpoints), and emits a normalized crawl-summary finding
+plus the discovered endpoint count.
+
+Output matches the common Finding/ScanResult schema every adapter produces.
+"""
+
 import asyncio
+import contextlib
 import json
+import os
 import tempfile
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 
+from appsec.logging import get_logger
 from appsec.scanner.interfaces.models import (
     Finding,
     ScanEngineCategory,
@@ -14,6 +23,15 @@ from appsec.scanner.interfaces.models import (
 )
 from appsec.scanner.interfaces.registry import register_scanner
 from appsec.scanner.interfaces.scanner import Scanner
+
+logger = get_logger(__name__)
+
+_SCAN_TIMEOUT = 300.0  # seconds; a hung crawl must not block the worker
+
+
+def _unlink_quiet(path: str) -> None:
+    with contextlib.suppress(OSError):
+        os.unlink(path)
 
 
 @register_scanner
@@ -29,22 +47,24 @@ class KatanaScanner(Scanner):
             proc = await asyncio.create_subprocess_exec(
                 "katana",
                 "-version",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
             )
-            await proc.communicate()
+            await proc.wait()
             return proc.returncode == 0
-        except Exception:
+        except (TimeoutError, OSError):
             return False
 
     async def scan(self, target: Target) -> ScanResult:
         started = datetime.now(UTC)
         hostname = target.hostname
-
         target_url = f"https://{hostname}"
-        out_path = Path(tempfile.gettempdir()) / f"katana_{uuid.uuid4()}.json"
 
-        cmd = ["katana", "-u", target_url, "-jsonl", "-o", str(out_path), "-silent"]
+        fd, output_file = tempfile.mkstemp(prefix="katana_", suffix=".jsonl")
+        os.close(fd)
+
+        # -jc: crawl JavaScript-rendered endpoints (needs the bundled Chromium).
+        cmd = ["katana", "-u", target_url, "-jc", "-jsonl", "-o", output_file, "-silent"]
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -52,61 +72,85 @@ class KatanaScanner(Scanner):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await proc.communicate()
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=_SCAN_TIMEOUT)
 
-            if proc.returncode != 0:
-                raise RuntimeError(
-                    f"Katana process exited with code {proc.returncode}: {stderr.decode()}"
+            endpoints = await asyncio.to_thread(self._read_endpoints, output_file)
+
+            if proc.returncode != 0 and not endpoints:
+                err_msg = stderr.decode(errors="replace").strip()[:500]
+                return ScanResult(
+                    scan_job_id=target.scan_job_id,
+                    engine=self.name,
+                    success=False,
+                    error_message=f"katana exited {proc.returncode}: {err_msg}",
+                    started_at=started,
+                    completed_at=datetime.now(UTC),
                 )
 
-            endpoints = []
-            if out_path.exists():
-                content = await asyncio.to_thread(
-                    out_path.read_text, encoding="utf-8"
-                )
-                for line in content.splitlines():
-                    if line.strip():
-                        data = json.loads(line)
-                        endpoints.append(data.get("endpoint", ""))
+            desc = (
+                f"Katana finished deep crawling {target_url}. "
+                f"Discovered {len(endpoints)} unique endpoints/links."
+            )
 
-            findings = []
-            if endpoints:
-                desc = (
-                    f"Katana finished deep crawling. "
-                    f"Discovered {len(endpoints)} unique endpoints/links."
-                )
-                findings.append(
-                    Finding(
-                        id=uuid.uuid4(),
-                        title="Web application crawling summary",
-                        severity=Severity.INFO,
-                        description=desc,
-                        engine=self.name,
-                        matched_at=hostname,
-                        evidence=endpoints[:20],
-                        tags=["crawl", "recon"],
-                        metadata={"total_endpoints": len(endpoints)},
-                    )
-                )
+            summary = Finding(
+                id=uuid.uuid4(),
+                title="Web application crawling summary",
+                severity=Severity.INFO,
+                description=desc,
+                engine=self.name,
+                matched_at=hostname,
+                tags=["recon", "crawler", "katana"],
+                metadata={
+                    "total_urls_found": len(endpoints),
+                    "endpoints": [e.get("endpoint") for e in endpoints if e.get("endpoint")],
+                },
+            )
 
             return ScanResult(
                 scan_job_id=target.scan_job_id,
                 engine=self.name,
-                findings=findings,
+                findings=[summary],
                 success=True,
                 started_at=started,
                 completed_at=datetime.now(UTC),
             )
-
-        except Exception as exc:
+        except TimeoutError:
+            logger.error("katana_scan_timeout", hostname=hostname, timeout=_SCAN_TIMEOUT)
             return ScanResult(
                 scan_job_id=target.scan_job_id,
                 engine=self.name,
                 success=False,
-                error_message=f"Katana scan failed: {str(exc)}",
+                error_message=f"katana timed out after {_SCAN_TIMEOUT:.0f}s",
                 started_at=started,
                 completed_at=datetime.now(UTC),
             )
+        except Exception as exc:  # noqa: BLE001 -- surface as engine-level failure
+            logger.error("katana_scan_failed", hostname=hostname, error=str(exc))
+            return ScanResult(
+                scan_job_id=target.scan_job_id,
+                engine=self.name,
+                success=False,
+                error_message=f"katana crawl failed: {exc}",
+                started_at=started,
+                completed_at=datetime.now(UTC),
+            )
+        finally:
+            await asyncio.to_thread(_unlink_quiet, output_file)
+
+    @staticmethod
+    def _read_endpoints(path: str) -> list[dict]:
+        items: list[dict] = []
+        if not os.path.exists(path):
+            return items
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    try:
+                        items.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        return items
 
 
 adapter = KatanaScanner()
