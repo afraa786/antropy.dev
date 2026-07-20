@@ -186,12 +186,7 @@ class UrlscanScanner(Scanner):
         requests = result.get("data", {}).get("requests", [])
         if not requests:
             return []
-        headers = (
-            requests[0]
-            .get("response", {})
-            .get("response", {})
-            .get("securityHeaders", [])
-        )
+        headers = requests[0].get("response", {}).get("response", {}).get("securityHeaders", [])
         present = {h.get("name", "").lower() for h in headers}
         missing = [h for h in _SECURITY_HEADERS if h.lower() not in present]
         if not missing:
@@ -208,12 +203,7 @@ class UrlscanScanner(Scanner):
         ]
 
     def _parse_technologies(self, result: dict[str, Any], url: str) -> list[Finding]:
-        apps = (
-            result.get("meta", {})
-            .get("processors", {})
-            .get("wappa", {})
-            .get("data", [])
-        )
+        apps = result.get("meta", {}).get("processors", {}).get("wappa", {}).get("data", [])
         names = [a.get("app") for a in apps if a.get("app")]
         if not names:
             return []

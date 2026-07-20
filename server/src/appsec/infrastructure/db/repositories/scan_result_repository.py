@@ -22,9 +22,7 @@ class SqlAlchemyScanResultRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def get_for_scan_job(
-        self, scan_job_id: uuid.UUID, organization_id: uuid.UUID
-    ) -> list[ScanResult]:
+    async def get_for_scan_job(self, scan_job_id: uuid.UUID, organization_id: uuid.UUID) -> list[ScanResult]:
         result = await self._session.execute(
             select(ScanResultModel).where(
                 ScanResultModel.scan_job_id == scan_job_id,

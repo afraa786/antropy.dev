@@ -38,9 +38,7 @@ class SqlAlchemyNotificationRepository:
         await self._session.refresh(model)
         return _to_entity(model)
 
-    async def list_for_user(
-        self, user_id: uuid.UUID, organization_id: uuid.UUID
-    ) -> list[Notification]:
+    async def list_for_user(self, user_id: uuid.UUID, organization_id: uuid.UUID) -> list[Notification]:
         result = await self._session.execute(
             select(NotificationModel).where(
                 NotificationModel.user_id == user_id,
@@ -49,9 +47,7 @@ class SqlAlchemyNotificationRepository:
         )
         return [_to_entity(m) for m in result.scalars().all()]
 
-    async def mark_read(
-        self, notification_id: uuid.UUID, user_id: uuid.UUID
-    ) -> Notification | None:
+    async def mark_read(self, notification_id: uuid.UUID, user_id: uuid.UUID) -> Notification | None:
         model = await self._session.get(NotificationModel, notification_id)
         if model is None or model.user_id != user_id:
             return None

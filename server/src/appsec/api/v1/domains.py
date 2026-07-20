@@ -57,9 +57,7 @@ async def get_domain(
     return _to_response(domain)
 
 
-@router.post(
-    "/domains/{domain_id}/verify/initiate", response_model=VerificationInstructionsResponse
-)
+@router.post("/domains/{domain_id}/verify/initiate", response_model=VerificationInstructionsResponse)
 async def initiate_domain_verification(
     domain_id: uuid.UUID,
     organization_id: CurrentOrganizationIdDep,

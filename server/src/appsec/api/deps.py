@@ -148,9 +148,7 @@ def get_scan_job_service(
 
 
 def get_scan_result_service(
-    scan_result_repository: Annotated[
-        SqlAlchemyScanResultRepository, Depends(get_scan_result_repository)
-    ],
+    scan_result_repository: Annotated[SqlAlchemyScanResultRepository, Depends(get_scan_result_repository)],
     organization_repository: Annotated[
         SqlAlchemyOrganizationRepository, Depends(get_organization_repository)
     ],

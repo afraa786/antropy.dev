@@ -25,9 +25,7 @@ def _api_key(monkeypatch):
 
 
 def _target() -> Target:
-    return Target(
-        hostname="example.com", scan_job_id=uuid.uuid4(), organization_id=uuid.uuid4()
-    )
+    return Target(hostname="example.com", scan_job_id=uuid.uuid4(), organization_id=uuid.uuid4())
 
 
 # A trimmed but structurally-real urlscan result (paths match the parser).
@@ -50,11 +48,7 @@ _RESULT_JSON = {
             {"url": "https://evil.example.net/"},
         ],
     },
-    "meta": {
-        "processors": {
-            "wappa": {"data": [{"app": "WordPress"}, {"app": "Google Analytics"}]}
-        }
-    },
+    "meta": {"processors": {"wappa": {"data": [{"app": "WordPress"}, {"app": "Google Analytics"}]}}},
     "page": {
         "tlsIssuer": "Let's Encrypt",
         "tlsValidDays": 12,
@@ -110,8 +104,9 @@ def _run_with_client(fake_client):
     from appsec.scanner.engines.urlscan_engine import UrlscanScanner
 
     async def _run():
-        with patch("httpx.AsyncClient", return_value=fake_client), patch(
-            "appsec.scanner.engines.urlscan_engine.asyncio.sleep", return_value=None
+        with (
+            patch("httpx.AsyncClient", return_value=fake_client),
+            patch("appsec.scanner.engines.urlscan_engine.asyncio.sleep", return_value=None),
         ):
             return await UrlscanScanner().scan(_target())
 

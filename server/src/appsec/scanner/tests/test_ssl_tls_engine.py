@@ -20,9 +20,7 @@ import pytest
 from appsec.scanner.engines.ssl_tls_engine import SslTlsScanner
 from appsec.scanner.interfaces.models import Severity, Target
 
-requires_openssl = pytest.mark.skipif(
-    shutil.which("openssl") is None, reason="openssl CLI not available"
-)
+requires_openssl = pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl CLI not available")
 
 
 def _make_self_signed(tmp: Path, days: int) -> tuple[Path, Path]:
@@ -32,9 +30,20 @@ def _make_self_signed(tmp: Path, days: int) -> tuple[Path, Path]:
     cert = tmp / "cert.pem"
     subprocess.run(
         [
-            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
-            "-keyout", str(key), "-out", str(cert), "-subj", "/CN=localhost",
-            "-days", str(days),
+            "openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:2048",
+            "-nodes",
+            "-keyout",
+            str(key),
+            "-out",
+            str(cert),
+            "-subj",
+            "/CN=localhost",
+            "-days",
+            str(days),
         ],
         check=True,
         capture_output=True,

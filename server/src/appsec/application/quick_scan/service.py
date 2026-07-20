@@ -59,9 +59,7 @@ class QuickScanService:
         skip_verification: bool,
     ) -> ScanJob:
         if target_type != "domain":
-            raise ForbiddenError(
-                f"target_type '{target_type}' is not supported yet — only 'domain'."
-            )
+            raise ForbiddenError(f"target_type '{target_type}' is not supported yet — only 'domain'.")
         hostname = target.strip().lower()
 
         organization = await self._get_or_create_workspace(user_id)
@@ -88,9 +86,7 @@ class QuickScanService:
         name = f"{user.email}'s Workspace"
         return await self._org_service.create(name, slug, user_id)
 
-    async def _get_or_create_project(
-        self, organization_id: uuid.UUID, user_id: uuid.UUID, hostname: str
-    ):
+    async def _get_or_create_project(self, organization_id: uuid.UUID, user_id: uuid.UUID, hostname: str):
         for project in await self._projects.list_for_organization(organization_id):
             if project.name == hostname:
                 return project

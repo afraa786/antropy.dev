@@ -19,9 +19,7 @@ class OrganizationService:
         if existing is not None:
             raise ConflictError(f"Organization slug '{slug}' already taken")
 
-        organization = Organization(
-            id=uuid.uuid4(), name=name, slug=slug, created_at=datetime.now(UTC)
-        )
+        organization = Organization(id=uuid.uuid4(), name=name, slug=slug, created_at=datetime.now(UTC))
         created = await self._orgs.create(organization)
         await self._orgs.add_member(
             OrganizationMember(

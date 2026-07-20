@@ -71,9 +71,7 @@ class SqlAlchemyDomainRepository:
         await self._session.refresh(model)
         return _to_entity(model)
 
-    async def list_for_project(
-        self, project_id: uuid.UUID, organization_id: uuid.UUID
-    ) -> list[Domain]:
+    async def list_for_project(self, project_id: uuid.UUID, organization_id: uuid.UUID) -> list[Domain]:
         result = await self._session.execute(
             select(DomainModel).where(
                 DomainModel.project_id == project_id, DomainModel.organization_id == organization_id
