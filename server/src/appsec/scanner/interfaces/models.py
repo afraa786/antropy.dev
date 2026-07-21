@@ -80,3 +80,7 @@ class ScanResult:
     success: bool = True
     error_message: str | None = None
     raw_output: str | None = None
+    #: Outputs an engine publishes for downstream engines in a staged pipeline,
+    #: e.g. katana putting {"urls_file": "/tmp/..."} here for nuclei to consume.
+    #: Keeps engine-to-engine handoff explicit instead of hidden in findings.
+    artifacts: dict[str, Any] = field(default_factory=dict)
