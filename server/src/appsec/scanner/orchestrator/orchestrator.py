@@ -11,9 +11,9 @@ import uuid
 from appsec.logging import get_logger
 from appsec.scanner.events import ScanFailed, ScanFinished, ScanStarted
 from appsec.scanner.interfaces.models import Target
-from appsec.scanner.orchestrator.dispatcher import dispatch
+from appsec.scanner.orchestrator.dispatcher import dispatch, dispatch_staged
 from appsec.scanner.orchestrator.pipeline import PipelineOutput, process
-from appsec.scanner.orchestrator.scheduler import select_engines
+from appsec.scanner.orchestrator.scheduler import select_engines, select_stages
 
 
 async def run_single_engine(
@@ -63,8 +63,13 @@ async def run_scan(
 
     target = Target(hostname=hostname, scan_job_id=scan_job_id, organization_id=organization_id)
 
+    # Run engines in ordered stages so recon/crawl output feeds the vuln stage
+    # (e.g. katana's crawled URLs -> nuclei). Engines within a stage still run
+    # concurrently, so this is no slower when there's nothing to chain.
+    stages = select_stages(scan_type)
+
     try:
-        results = await dispatch(engine_names, target)
+        results = await dispatch_staged(stages, target)
     except Exception as exc:  # noqa: BLE001 -- surface as a scan-level failure event
         logger.error("scan_failed", scan_job_id=str(scan_job_id), error=str(exc))
         failed_event = ScanFailed(
