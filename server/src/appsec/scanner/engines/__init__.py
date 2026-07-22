@@ -5,7 +5,6 @@ from appsec.scanner.engines import ssl_tls_engine, urlscan_engine  # noqa: F401
 from appsec.scanner.engines.katana import adapter as katana_adapter  # noqa: F401
 from appsec.scanner.engines.nuclei import adapter as nuclei_adapter  # noqa: F401
 
-
 __all__ = [
     "katana_adapter",
     "nuclei_adapter",

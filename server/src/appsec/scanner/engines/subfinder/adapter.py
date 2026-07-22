@@ -79,10 +79,7 @@ class SubfinderScanner(Scanner):
                     completed_at=datetime.now(UTC),
                 )
 
-            desc = (
-                f"Subfinder enumeration completed for {hostname}. "
-                f"Discovered {len(subdomains)} subdomains."
-            )
+            desc = f"Subfinder enumeration completed for {hostname}. Discovered {len(subdomains)} subdomains."
 
             summary = Finding(
                 id=uuid.uuid4(),
