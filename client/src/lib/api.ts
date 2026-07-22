@@ -113,7 +113,7 @@ export async function getOrganizations() {
 }
 
 export async function quickScan(target: string) {
-  return request<{ scan_job_id: string; status: string }>(
+  return request<{ scan_job_id: string; org_id: string; status: string }>(
     "/api/v1/quick-scan",
     {
       method: "POST",
@@ -124,6 +124,7 @@ export async function quickScan(target: string) {
         skip_verification: true,
       }),
     },
+    false,
   );
 }
 

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from appsec.domain.entities.user import User
 from appsec.domain.exceptions import NotFoundError
 from appsec.domain.repositories.user_repository import UserRepository
+from appsec.infrastructure.security.password import hash_password
 
 
 class UserService:
@@ -24,3 +25,16 @@ class UserService:
         updated = await self._users.update(user)
         await self._session.commit()
         return updated
+
+    async def create_anonymous(self) -> User:
+        """Create a temporary anonymous user for demo/quick-scan flows."""
+        user = User(
+            id=uuid.uuid4(),
+            email=f"anon-{uuid.uuid4().hex[:8]}@demo.local",
+            hashed_password=hash_password("demo-" + uuid.uuid4().hex[:16]),
+            is_active=True,
+            full_name="Demo User",
+        )
+        created = await self._users.create(user)
+        await self._session.commit()
+        return created

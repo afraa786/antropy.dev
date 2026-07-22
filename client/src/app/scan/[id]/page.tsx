@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Navbar, SeverityBadge } from "@/components/entropy-ui";
-import { getActiveOrgId, getAuthToken, getDomain, getScanJob, getScanResults, clearAuth } from "@/lib/api";
+import { getActiveOrgId, getDomain, getScanJob, getScanResults } from "@/lib/api";
 
 type FindingItem = {
   title: string;
@@ -29,14 +29,10 @@ export default function ScanPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getAuthToken()) {
-      router.replace(`/login?next=/scan/${params.id}`);
-      return;
-    }
-
     const orgId = getActiveOrgId();
     if (!orgId) {
-      router.replace("/dashboard");
+      // No org found, redirect to home to start a new scan
+      router.replace("/");
       return;
     }
 
