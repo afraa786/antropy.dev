@@ -6,6 +6,7 @@ from appsec.api.middleware import RequestContextMiddleware
 from appsec.api.v1.router import api_router
 from appsec.config import get_settings
 from appsec.logging import configure_logging
+from appsec.scanner import engines as _  # noqa: F401 - Load scanner engine registry
 
 
 def create_app() -> FastAPI:

@@ -88,6 +88,17 @@ class KatanaScanner(Scanner):
                     completed_at=datetime.now(UTC),
                 )
 
+            urls = [e.get("endpoint") for e in endpoints if e.get("endpoint")]
+
+            # Publish the crawled URLs as a plain-text list so a downstream vuln
+            # engine (nuclei) can scan the exact endpoints we discovered. The
+            # staged dispatcher forwards `artifacts["urls_file"]` into nuclei's
+            # Target.options; it (not katana) owns deleting the file afterwards.
+            artifacts: dict = {}
+            if urls:
+                urls_file = await asyncio.to_thread(self._write_urls_file, urls)
+                artifacts["urls_file"] = urls_file
+
             summary = Finding(
                 id=uuid.uuid4(),
                 title="Web application crawling summary",
@@ -99,10 +110,7 @@ class KatanaScanner(Scanner):
                 engine=self.name,
                 matched_at=hostname,
                 tags=["recon", "crawler", "katana"],
-                metadata={
-                    "total_urls_found": len(endpoints),
-                    "endpoints": [e.get("endpoint") for e in endpoints if e.get("endpoint")],
-                },
+                metadata={"total_urls_found": len(endpoints), "endpoints": urls},
             )
 
             return ScanResult(
@@ -112,6 +120,7 @@ class KatanaScanner(Scanner):
                 success=True,
                 started_at=started,
                 completed_at=datetime.now(UTC),
+                artifacts=artifacts,
             )
         except TimeoutError:
             logger.error("katana_scan_timeout", hostname=hostname, timeout=_SCAN_TIMEOUT)
@@ -135,6 +144,16 @@ class KatanaScanner(Scanner):
             )
         finally:
             await asyncio.to_thread(_unlink_quiet, output_file)
+
+    @staticmethod
+    def _write_urls_file(urls: list[str]) -> str:
+        """Write discovered URLs one-per-line to a persistent temp file and
+        return its path. NOT deleted here — the downstream consumer owns it.
+        """
+        fd, path = tempfile.mkstemp(prefix="katana_urls_", suffix=".txt")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(urls))
+        return path
 
     @staticmethod
     def _read_endpoints(path: str) -> list[dict]:

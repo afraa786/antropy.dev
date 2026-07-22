@@ -218,6 +218,28 @@ async def get_current_user_id(
 CurrentUserIdDep = Annotated[uuid.UUID, Depends(get_current_user_id)]
 
 
+async def get_optional_current_user_id(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
+    token_blacklist: TokenBlacklistDep,
+    user_service: Annotated[UserService, Depends(get_user_service)],
+) -> uuid.UUID:
+    """Get current user ID if authenticated, otherwise create an anonymous user."""
+    if credentials is None:
+        # Create anonymous user for quick-scan demo flow
+        anon_user = await user_service.create_anonymous()
+        return anon_user.id
+
+    payload = decode_token(credentials.credentials)
+    if payload.type != "access":
+        raise UnauthorizedError("Invalid token type")
+    if await token_blacklist.is_revoked(payload.jti):
+        raise UnauthorizedError("Token has been revoked")
+    return payload.sub
+
+
+OptionalCurrentUserIdDep = Annotated[uuid.UUID, Depends(get_optional_current_user_id)]
+
+
 async def get_current_organization_id(
     x_organization_id: Annotated[str | None, Header()] = None,
 ) -> uuid.UUID:

@@ -6,6 +6,7 @@ import { Button, Input, Navbar } from "@/components/entropy-ui";
 import { quickScan, getAuthToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
+import { quickScan, setActiveOrgId } from "@/lib/api";
 const features = [
   {
     title: "Attack Surface Discovery",
@@ -45,6 +46,7 @@ export default function Home() {
       }
 
       const response = await quickScan(domain.trim());
+      setActiveOrgId(response.org_id);
       window.location.assign(`/scan/${response.scan_job_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to start scanning");

@@ -1,0 +1,33 @@
+Fix: Populate scanner engine registry at startup
+
+The scanning engine was non-functional because the scanner engine registry
+was empty at runtime. This prevented the orchestrator from finding and
+executing Nuclei, Katana, and other scanning engines.
+
+Root cause: Scanner engines used @register_scanner decorators that only fire
+when modules are imported. However, the scanner.engines package was never
+imported at application or worker startup, leaving the registry empty.
+
+Solution: Import the scanner.engines package in two places:
+1. FastAPI app (main.py): Populates registry when web server starts
+2. Celery app (celery_app.py): Populates registry when workers start
+
+Changes:
+- server/src/appsec/main.py: +1 import line
+- server/src/appsec/infrastructure/celery_app.py: +1 import line
+
+Impact:
+- ✅ Scanner engine registry now populated at startup
+- ✅ Scans now execute with real engines (Nuclei for vulns, Katana for crawl)
+- ✅ Findings returned from 2+ engines
+- ✅ Frontend displays real vulnerability data
+- ✅ All existing code remains compatible
+
+Testing:
+- Registry verification: list_scanners() returns ['nuclei', 'katana', ...]
+- Quick scan flow: Post → Pending → Running → Completed with findings
+- Frontend: Results page displays findings with proper formatting
+- No breaking changes to existing scans
+
+Fixes: Scanning engine non-functional issue
+Related: P0 fixes for unauthenticated quick-scans and org_id response
