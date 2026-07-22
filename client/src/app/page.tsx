@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button, Input, Navbar } from "@/components/entropy-ui";
-import { quickScan, setActiveOrgId } from "@/lib/api";
+import { quickScan, getAuthToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
+import { quickScan, setActiveOrgId } from "@/lib/api";
 const features = [
   {
     title: "Attack Surface Discovery",
@@ -28,6 +30,7 @@ export default function Home() {
   const [domain, setDomain] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,6 +38,13 @@ export default function Home() {
     setError(null);
 
     try {
+      const token = getAuthToken();
+      if (!token) {
+        // Require sign-in for starting scans; redirect to login
+        router.push(`/login?next=/scan`);
+        return;
+      }
+
       const response = await quickScan(domain.trim());
       setActiveOrgId(response.org_id);
       window.location.assign(`/scan/${response.scan_job_id}`);
