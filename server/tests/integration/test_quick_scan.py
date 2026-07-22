@@ -13,7 +13,7 @@ from appsec.infrastructure.db.models.scan_job import ScanJobModel
 async def _register_login(client: AsyncClient, email: str) -> str:
     await client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "supersecret123", "full_name": None},
+        json={"email": email, "password": "test_password", "full_name": None},
     )
     login = await client.post("/api/v1/auth/login", json={"email": email, "password": "supersecret123"})
     return login.json()["access_token"]
