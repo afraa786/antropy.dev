@@ -1,6 +1,7 @@
 from celery import Celery
 
 from appsec.config import get_settings
+from appsec.scanner import engines as _  # noqa: F401 - Load scanner engine registry
 
 settings = get_settings()
 

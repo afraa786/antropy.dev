@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button, Input, Navbar } from "@/components/entropy-ui";
-import { quickScan } from "@/lib/api";
+import { quickScan, setActiveOrgId } from "@/lib/api";
 
 const features = [
   {
@@ -36,6 +36,7 @@ export default function Home() {
 
     try {
       const response = await quickScan(domain.trim());
+      setActiveOrgId(response.org_id);
       window.location.assign(`/scan/${response.scan_job_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to start scanning");

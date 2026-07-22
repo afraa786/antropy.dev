@@ -16,4 +16,5 @@ class QuickScanRequest(BaseModel):
 
 class QuickScanResponse(BaseModel):
     scan_job_id: uuid.UUID
+    org_id: uuid.UUID
     status: ScanStatus
