@@ -1,9 +1,3 @@
-"""Nuclei vulnerability-scanner engine. Wraps the `nuclei` CLI, runs it against
-the target over HTTPS, parses its JSONL output, and emits normalized findings.
-
-Output matches the common Finding/ScanResult schema every adapter produces.
-"""
-
 import asyncio
 import contextlib
 import json
@@ -25,7 +19,7 @@ from appsec.scanner.interfaces.scanner import Scanner
 
 logger = get_logger(__name__)
 
-_SCAN_TIMEOUT = 300.0  # seconds; a hung crawl must not block the worker
+_SCAN_TIMEOUT = 300.0  # seconds; domain discovery must not hang the worker
 
 
 def _unlink_quiet(path: str) -> None:
@@ -34,9 +28,9 @@ def _unlink_quiet(path: str) -> None:
 
 
 @register_scanner
-class KatanaScanner(Scanner):
-    name = "katana"
-    category = ScanEngineCategory.WEB_CRAWL
+class SubfinderScanner(Scanner):
+    name = "subfinder"
+    category = ScanEngineCategory.SUBDOMAIN_ENUM
 
     async def validate(self, target: Target) -> bool:
         return bool(target.hostname)
@@ -44,7 +38,7 @@ class KatanaScanner(Scanner):
     async def health_check(self) -> bool:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "katana",
+                "subfinder",
                 "-version",
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
@@ -57,13 +51,11 @@ class KatanaScanner(Scanner):
     async def scan(self, target: Target) -> ScanResult:
         started = datetime.now(UTC)
         hostname = target.hostname
-        target_url = f"https://{hostname}"
 
-        fd, output_file = tempfile.mkstemp(prefix="katana_", suffix=".jsonl")
+        fd, output_file = tempfile.mkstemp(prefix="subfinder_", suffix=".jsonl")
         os.close(fd)
 
-        # -jc: crawl JavaScript-rendered endpoints (needs the bundled Chromium).
-        cmd = ["katana", "-u", target_url, "-jc", "-jsonl", "-o", output_file, "-silent"]
+        cmd = ["subfinder", "-d", hostname, "-oJ", "-o", output_file, "-silent"]
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -73,35 +65,33 @@ class KatanaScanner(Scanner):
             )
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=_SCAN_TIMEOUT)
 
-            endpoints = await asyncio.to_thread(self._read_endpoints, output_file)
+            raw_results = await asyncio.to_thread(self._read_jsonl, output_file)
+            subdomains = [r.get("host") for r in raw_results if r.get("host")]
 
-            if proc.returncode != 0 and not endpoints:
+            if proc.returncode != 0 and not subdomains:
                 err_msg = stderr.decode(errors="replace").strip()[:500]
                 return ScanResult(
                     scan_job_id=target.scan_job_id,
                     engine=self.name,
                     success=False,
-                    error_message=f"katana exited {proc.returncode}: {err_msg}",
+                    error_message=f"subfinder exited {proc.returncode}: {err_msg}",
                     started_at=started,
                     completed_at=datetime.now(UTC),
                 )
 
-            desc = (
-                f"Katana finished deep crawling {target_url}. "
-                f"Discovered {len(endpoints)} unique endpoints/links."
-            )
+            desc = f"Subfinder enumeration completed for {hostname}. Discovered {len(subdomains)} subdomains."
 
             summary = Finding(
                 id=uuid.uuid4(),
-                title="Web application crawling summary",
+                title="Subdomain enumeration summary",
                 severity=Severity.INFO,
                 description=desc,
                 engine=self.name,
                 matched_at=hostname,
-                tags=["recon", "crawler", "katana"],
+                tags=["recon", "subdomain", "subfinder"],
                 metadata={
-                    "total_urls_found": len(endpoints),
-                    "endpoints": [e.get("endpoint") for e in endpoints if e.get("endpoint")],
+                    "total_subdomains": len(subdomains),
+                    "subdomains": subdomains,
                 },
             )
 
@@ -114,22 +104,22 @@ class KatanaScanner(Scanner):
                 completed_at=datetime.now(UTC),
             )
         except TimeoutError:
-            logger.error("katana_scan_timeout", hostname=hostname, timeout=_SCAN_TIMEOUT)
+            logger.error("subfinder_scan_timeout", hostname=hostname, timeout=_SCAN_TIMEOUT)
             return ScanResult(
                 scan_job_id=target.scan_job_id,
                 engine=self.name,
                 success=False,
-                error_message=f"katana timed out after {_SCAN_TIMEOUT:.0f}s",
+                error_message=f"subfinder timed out after {_SCAN_TIMEOUT:.0f}s",
                 started_at=started,
                 completed_at=datetime.now(UTC),
             )
         except Exception as exc:  # noqa: BLE001 -- surface as engine-level failure
-            logger.error("katana_scan_failed", hostname=hostname, error=str(exc))
+            logger.error("subfinder_scan_failed", hostname=hostname, error=str(exc))
             return ScanResult(
                 scan_job_id=target.scan_job_id,
                 engine=self.name,
                 success=False,
-                error_message=f"katana crawl failed: {exc}",
+                error_message=f"subfinder enumeration failed: {exc}",
                 started_at=started,
                 completed_at=datetime.now(UTC),
             )
@@ -137,7 +127,7 @@ class KatanaScanner(Scanner):
             await asyncio.to_thread(_unlink_quiet, output_file)
 
     @staticmethod
-    def _read_endpoints(path: str) -> list[dict]:
+    def _read_jsonl(path: str) -> list[dict]:
         items: list[dict] = []
         if not os.path.exists(path):
             return items
@@ -152,4 +142,4 @@ class KatanaScanner(Scanner):
         return items
 
 
-adapter = KatanaScanner()
+adapter = SubfinderScanner()

@@ -1,7 +1,7 @@
-"""Katana web-crawler engine. Wraps the `katana` CLI, deep-crawls the target
-(including JavaScript endpoints), and emits a normalized crawl-summary finding
-plus the discovered endpoint count.
+"""Katana adapter for deep web crawling and endpoint discovery.
 
+Runs Katana, parses JSON lines output into summary findings, and publishes
+discovered URLs to a temp file for downstream vulnerability engines (like Nuclei).
 Output matches the common Finding/ScanResult schema every adapter produces.
 """
 
@@ -12,11 +12,12 @@ import os
 import tempfile
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from appsec.logging import get_logger
 from appsec.scanner.interfaces.models import (
+    Evidence,
     Finding,
-    ScanEngineCategory,
     ScanResult,
     Severity,
     Target,
@@ -26,7 +27,7 @@ from appsec.scanner.interfaces.scanner import Scanner
 
 logger = get_logger(__name__)
 
-_SCAN_TIMEOUT = 300.0  # seconds; a hung crawl must not block the worker
+_SCAN_TIMEOUT = 300  # 5 minutes default timeout
 
 
 def _unlink_quiet(path: str) -> None:
@@ -34,93 +35,92 @@ def _unlink_quiet(path: str) -> None:
         os.unlink(path)
 
 
+def _parse_endpoints_file(path: str) -> list[dict[str, Any]]:
+    endpoints: list[dict[str, Any]] = []
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    with contextlib.suppress(json.JSONDecodeError):
+                        endpoints.append(json.loads(line))
+    return endpoints
+
+
 @register_scanner
 class KatanaScanner(Scanner):
     name = "katana"
-    category = ScanEngineCategory.WEB_CRAWL
 
     async def validate(self, target: Target) -> bool:
-        return bool(target.hostname)
+        return bool(target.hostname or target.target_url)
 
     async def health_check(self) -> bool:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "katana",
-                "-version",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await proc.wait()
-            return proc.returncode == 0
-        except (TimeoutError, OSError):
-            return False
+        return True
 
     async def scan(self, target: Target) -> ScanResult:
         started = datetime.now(UTC)
-        hostname = target.hostname
-        target_url = f"https://{hostname}"
+        hostname = target.hostname or "unknown"
+        target_url = target.target_url or f"https://{hostname}"
 
-        fd, output_file = tempfile.mkstemp(prefix="katana_", suffix=".jsonl")
-        os.close(fd)
+        with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as tmp_out:
+            output_file = tmp_out.name
 
-        # -jc: crawl JavaScript-rendered endpoints (needs the bundled Chromium).
-        cmd = ["katana", "-u", target_url, "-jc", "-jsonl", "-o", output_file, "-silent"]
+        cmd = [
+            "katana",
+            "-u",
+            target_url,
+            "-jc",
+            "-jsonl",
+            "-o",
+            output_file,
+            "-silent",
+        ]
+
+        artifacts: dict[str, Any] = {}
 
         try:
-            proc = await asyncio.create_subprocess_exec(
+            process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=_SCAN_TIMEOUT)
 
-            endpoints = await asyncio.to_thread(self._read_endpoints, output_file)
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=_SCAN_TIMEOUT)
 
-            if proc.returncode != 0 and not endpoints:
-                return ScanResult(
-                    scan_job_id=target.scan_job_id,
-                    engine=self.name,
-                    success=False,
-                    error_message=(
-                        f"katana exited {proc.returncode}: {stderr.decode(errors='replace').strip()[:500]}"
-                    ),
-                    started_at=started,
-                    completed_at=datetime.now(UTC),
-                )
+            raw_output = stdout_bytes.decode(errors="replace") + stderr_bytes.decode(errors="replace")
+
+            endpoints = await asyncio.to_thread(_parse_endpoints_file, output_file)
 
             urls = [e.get("endpoint") for e in endpoints if e.get("endpoint")]
 
-            # Publish the crawled URLs as a plain-text list so a downstream vuln
-            # engine (nuclei) can scan the exact endpoints we discovered. The
-            # staged dispatcher forwards `artifacts["urls_file"]` into nuclei's
-            # Target.options; it (not katana) owns deleting the file afterwards.
-            artifacts: dict = {}
-            if urls:
-                urls_file = await asyncio.to_thread(self._write_urls_file, urls)
-                artifacts["urls_file"] = urls_file
+            # Publish the crawled URLs as a plain-text list so a downstream vuln engine can ingest them
+            urls_file = await asyncio.to_thread(self._write_urls_file, urls)
+            artifacts["urls_file"] = urls_file
+
+            desc = (
+                f"Katana finished deep crawling {target_url}. "
+                f"Discovered {len(endpoints)} unique endpoints/links."
+            )
 
             summary = Finding(
                 id=uuid.uuid4(),
                 title="Web application crawling summary",
                 severity=Severity.INFO,
-                description=(
-                    f"Katana finished deep crawling {target_url}. "
-                    f"Discovered {len(endpoints)} unique endpoints/links."
-                ),
+                description=desc,
                 engine=self.name,
                 matched_at=hostname,
-                tags=["recon", "crawler", "katana"],
-                metadata={"total_urls_found": len(endpoints), "endpoints": urls},
+                fingerprint=f"katana:{hostname}:summary",
             )
 
             return ScanResult(
                 scan_job_id=target.scan_job_id,
                 engine=self.name,
-                findings=[summary],
                 success=True,
+                findings=[summary],
+                raw_output=raw_output,
+                artifacts=artifacts,
                 started_at=started,
                 completed_at=datetime.now(UTC),
-                artifacts=artifacts,
             )
         except TimeoutError:
             logger.error("katana_scan_timeout", hostname=hostname, timeout=_SCAN_TIMEOUT)
@@ -128,17 +128,19 @@ class KatanaScanner(Scanner):
                 scan_job_id=target.scan_job_id,
                 engine=self.name,
                 success=False,
-                error_message=f"katana timed out after {_SCAN_TIMEOUT:.0f}s",
+                error_message=f"Katana scan timed out after {_SCAN_TIMEOUT} seconds.",
+                artifacts=artifacts,
                 started_at=started,
                 completed_at=datetime.now(UTC),
             )
-        except Exception as exc:  # noqa: BLE001 -- surface as engine-level failure
+        except Exception as exc:  # noqa: BLE001
             logger.error("katana_scan_failed", hostname=hostname, error=str(exc))
             return ScanResult(
                 scan_job_id=target.scan_job_id,
                 engine=self.name,
                 success=False,
-                error_message=f"katana crawl failed: {exc}",
+                error_message=f"Katana scan failed: {exc}",
+                artifacts=artifacts,
                 started_at=started,
                 completed_at=datetime.now(UTC),
             )
@@ -147,25 +149,7 @@ class KatanaScanner(Scanner):
 
     @staticmethod
     def _write_urls_file(urls: list[str]) -> str:
-        """Write discovered URLs one-per-line to a persistent temp file and
-        return its path. NOT deleted here — the downstream consumer owns it.
-        """
-        fd, path = tempfile.mkstemp(prefix="katana_urls_", suffix=".txt")
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write("\n".join(urls))
-        return path
-
-    @staticmethod
-    def _read_endpoints(path: str) -> list[dict]:
-        items: list[dict] = []
-        if not os.path.exists(path):
-            return items
-        with open(path, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if line:
-                    try:
-                        items.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        continue
-        return items
+        with tempfile.NamedTemporaryFile("w", delete=False, suffix="_katana_urls.txt") as tmp:
+            for u in urls:
+                tmp.write(f"{u}\n")
+            return tmp.name
