@@ -70,9 +70,7 @@ class KatanaScanner(Scanner):
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(), timeout=_SCAN_TIMEOUT
-            )
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=_SCAN_TIMEOUT)
 
             raw_output = stdout_bytes.decode(errors="replace") + stderr_bytes.decode(errors="replace")
 
@@ -134,4 +132,3 @@ class KatanaScanner(Scanner):
             for u in urls:
                 tmp.write(f"{u}\n")
             return tmp.name
-
