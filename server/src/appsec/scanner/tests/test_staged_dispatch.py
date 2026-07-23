@@ -8,8 +8,13 @@ import tempfile
 import uuid
 from datetime import UTC, datetime
 
-import pytest
-from appsec.scanner.models import Finding, ScanJob, ScanResult, ScanStatus, ScanTarget, Severity
+from appsec.models import (
+    Finding,
+    ScanResult,
+    ScanStatus,
+    ScanTarget,
+    Severity,
+)
 from appsec.scanner.registry import Scanner, register_scanner
 from appsec.scanner.staged_dispatch import staged_dispatch
 

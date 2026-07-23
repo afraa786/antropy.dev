@@ -14,8 +14,13 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-import structlog
-from appsec.scanner.models import Finding, ScanResult, ScanStatus, ScanTarget, Severity
+from appsec.models import (
+    Finding,
+    ScanResult,
+    ScanStatus,
+    ScanTarget,
+    Severity,
+)
 from appsec.scanner.registry import Scanner
 
 logger = structlog.get_logger()
