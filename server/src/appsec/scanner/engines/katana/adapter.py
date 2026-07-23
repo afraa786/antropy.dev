@@ -14,16 +14,18 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from appsec.models import (
+from appsec.logging import get_logger
+from appsec.scanner.interfaces.models import (
+    Evidence,
     Finding,
     ScanResult,
-    ScanStatus,
-    ScanTarget,
     Severity,
+    Target,
 )
-from appsec.scanner.registry import Scanner
+from appsec.scanner.interfaces.registry import register_scanner
+from appsec.scanner.interfaces.scanner import Scanner
 
-logger = structlog.get_logger()
+logger = get_logger(__name__)
 
 _SCAN_TIMEOUT = 300  # 5 minutes default timeout
 
@@ -45,12 +47,20 @@ def _parse_endpoints_file(path: str) -> list[dict[str, Any]]:
     return endpoints
 
 
+@register_scanner
 class KatanaScanner(Scanner):
     name = "katana"
 
-    async def run(self, target: ScanTarget) -> ScanResult:
+    async def validate(self, target: Target) -> bool:
+        return bool(target.hostname or target.target_url)
+
+    async def health_check(self) -> bool:
+        return True
+
+    async def scan(self, target: Target) -> ScanResult:
+        started = datetime.now(UTC)
         hostname = target.hostname or "unknown"
-        target_url = target.target_url
+        target_url = target.target_url or f"https://{hostname}"
 
         with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as tmp_out:
             output_file = tmp_out.name
@@ -104,28 +114,34 @@ class KatanaScanner(Scanner):
 
             return ScanResult(
                 scan_job_id=target.scan_job_id,
-                status=ScanStatus.COMPLETED,
+                engine=self.name,
+                success=True,
                 findings=[summary],
                 raw_output=raw_output,
                 artifacts=artifacts,
+                started_at=started,
                 completed_at=datetime.now(UTC),
             )
         except TimeoutError:
             logger.error("katana_scan_timeout", hostname=hostname, timeout=_SCAN_TIMEOUT)
             return ScanResult(
                 scan_job_id=target.scan_job_id,
-                status=ScanStatus.FAILED,
-                error=f"Katana scan timed out after {_SCAN_TIMEOUT} seconds.",
+                engine=self.name,
+                success=False,
+                error_message=f"Katana scan timed out after {_SCAN_TIMEOUT} seconds.",
                 artifacts=artifacts,
+                started_at=started,
                 completed_at=datetime.now(UTC),
             )
         except Exception as exc:  # noqa: BLE001
             logger.error("katana_scan_failed", hostname=hostname, error=str(exc))
             return ScanResult(
                 scan_job_id=target.scan_job_id,
-                status=ScanStatus.FAILED,
-                error=f"Katana scan failed: {exc}",
+                engine=self.name,
+                success=False,
+                error_message=f"Katana scan failed: {exc}",
                 artifacts=artifacts,
+                started_at=started,
                 completed_at=datetime.now(UTC),
             )
         finally:
