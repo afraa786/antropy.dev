@@ -45,7 +45,7 @@ class NaabuScanner(Scanner):
             )
             await proc.wait()
             return proc.returncode == 0
-        except (asyncio.TimeoutError, OSError):
+        except (TimeoutError, OSError):
             return False
 
     async def scan(self, target: Target) -> ScanResult:
@@ -127,7 +127,7 @@ class NaabuScanner(Scanner):
                 artifacts=artifacts,
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("naabu_scan_timeout", hostname=hostname, timeout=_SCAN_TIMEOUT)
             return ScanResult(
                 scan_job_id=target.scan_job_id,
