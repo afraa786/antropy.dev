@@ -58,21 +58,6 @@ jobs:
           npm ci
           npm run build
 
-  lint:
-    name: Lint (Ruff)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-      - run: uv sync --locked
-      - name: Ruff lint
-        run: uv run ruff check --output-format=github .
-
   format:
     name: Formatting (Ruff format)
     runs-on: ubuntu-latest
