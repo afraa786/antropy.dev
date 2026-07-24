@@ -3,11 +3,14 @@
 # populated as soon as the engines package is imported.
 from appsec.scanner.engines import ssl_tls_engine, urlscan_engine  # noqa: F401
 from appsec.scanner.engines.katana import adapter as katana_adapter  # noqa: F401
+from appsec.scanner.engines.naabu import adapter as naabu_adapter  # noqa: F401
 from appsec.scanner.engines.nuclei import adapter as nuclei_adapter  # noqa: F401
 
 __all__ = [
     "katana_adapter",
+    "naabu_adapter",
     "nuclei_adapter",
     "ssl_tls_engine",
     "urlscan_engine",
 ]
+ 
